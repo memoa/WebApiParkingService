@@ -117,26 +117,51 @@ namespace WebApiParkingService {
     [WebMethod (MessageName = "Novi Tiket", Description = "Kreiranje novog tiketa prema registarskim tablicama")]
     [ScriptMethod (ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void NewTicket(string licencePlate) {
-      string vreme = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
-      string SQLQueryString =
-        "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
-        "VALUES ('" + licencePlate + "', '" + vreme + "')";
+      JavaScriptSerializer json = new JavaScriptSerializer();
+      ParkingTicket getParkingTicket = null;
+      DateTime ticketValid = DateTime.Now.AddHours(1);
+      int dataRows = 0;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
           SqlDataAdapter sda = new SqlDataAdapter();
-          SqlCommand command = new SqlCommand(
+          SqlCommand command = new SqlCommand();
+          connection.Open();
+          command.Connection = connection;
+          command.CommandText =
             "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
-            "VALUES (@car_licence_plate, @ticket_valid)", connection);
-          command.Parameters.Add("@car_licence_plate", SqlDbType.NVarChar, 50, licencePlate);
-          SqlParameter parameter = command.Parameters.Add("@ticket_valid", SqlDbType.DateTime);
-          parameter.Value = DateTime.Now;
+            "VALUES (@car_licence_plate, @ticket_valid)";
+          command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+          command.Parameters.AddWithValue("@ticket_valid", ticketValid);
+          command.ExecuteNonQuery();
+          connection.Close();
 
-          sda.InsertCommand = command;
+          connection.Open();
+          SqlDataAdapter sda2 = new SqlDataAdapter();
+          SqlCommand command2 = new SqlCommand();
+          command2.Connection = connection;
+          command2.CommandText =
+            "SELECT * FROM parking_ticket " +
+            "WHERE car_licence_plate = @car_licence_plate AND ticket_valid = @ticket_valid";
+          command2.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+          command2.Parameters.AddWithValue("@ticket_valid", ticketValid);
+          command2.CommandType = System.Data.CommandType.Text;
+          sda2.SelectCommand = command2;
+          DataTable dTable = new DataTable();
+          dataRows = sda2.Fill(dTable);
+          getParkingTicket = new ParkingTicket() {
+            parking_ticket_id = Convert.ToString(dTable.Rows[0]["parking_ticket_id"]),
+            car_licence_plate = Convert.ToString(dTable.Rows[0]["car_licence_plate"]),
+            ticket_valid = Convert.ToString(dTable.Rows[0]["ticket_valid"])
+          };
+          dTable.Clear();
           connection.Close();
         }
       }
       catch { }
-      HttpContext.Current.Response.Write(SQLQueryString);
+      var JSonData = new {
+        getParkingTicket = getParkingTicket
+      };
+      HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
   }
 }
