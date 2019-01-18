@@ -119,12 +119,29 @@ namespace WebApiParkingService {
     public void NewTicket(string licencePlate) {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket getParkingTicket = null;
+      DateTime trenutnoVreme = DateTime.Now;
       DateTime ticketValid = DateTime.Now.AddHours(1);
+      bool notExpired = true;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
+          SqlDataAdapter sda3 = new SqlDataAdapter();
+          SqlCommand command3 = new SqlCommand();
+          command3.Connection = connection;
+          command3.CommandText = 
+            "SELECT * FROM parking_ticket WHERE car_licence_plate = @car_licence_plate " +
+            //"AND ticket_valid = (SELECT MAX(ticket_valid) FROM parking_ticket) " +
+            "AND ticket_valid > @ticket_valid";
+          command3.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+          command3.Parameters.AddWithValue("@ticket_valid", trenutnoVreme);
+          command3.CommandType = System.Data.CommandType.Text;
+          DataTable dTable3 = new DataTable();
+          bool notFound = sda3.Fill(dTable3) > 0 ? true : false;
+          connection.Close();
+
+          connection.Open();
           SqlDataAdapter sda = new SqlDataAdapter();
           SqlCommand command = new SqlCommand();
-          connection.Open();
           command.Connection = connection;
           command.CommandText =
             "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
@@ -199,6 +216,12 @@ namespace WebApiParkingService {
         getParkingTickets = getParkingTickets
       };
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
+    }
+
+    [WebMethod(MessageName = "Brisanje Isteklih Tiketa", Description = "Brisanje Svih Isteklih tiketa")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    public void RemoveAllExpired() {
+
     }
   }
 }
