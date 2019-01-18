@@ -120,7 +120,6 @@ namespace WebApiParkingService {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket getParkingTicket = null;
       DateTime ticketValid = DateTime.Now.AddHours(1);
-      int dataRows = 0;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
           SqlDataAdapter sda = new SqlDataAdapter();
@@ -147,7 +146,7 @@ namespace WebApiParkingService {
           command2.CommandType = System.Data.CommandType.Text;
           sda2.SelectCommand = command2;
           DataTable dTable = new DataTable();
-          dataRows = sda2.Fill(dTable);
+          sda2.Fill(dTable);
           getParkingTicket = new ParkingTicket() {
             parking_ticket_id = Convert.ToString(dTable.Rows[0]["parking_ticket_id"]),
             car_licence_plate = Convert.ToString(dTable.Rows[0]["car_licence_plate"]),
@@ -160,6 +159,44 @@ namespace WebApiParkingService {
       catch { }
       var JSonData = new {
         getParkingTicket = getParkingTicket
+      };
+      HttpContext.Current.Response.Write(json.Serialize(JSonData));
+    }
+
+    [WebMethod(MessageName = "Svi istekli tiketi", Description = "Prikaz isteklih tiketa")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    public void getAllExpired() {
+      JavaScriptSerializer json = new JavaScriptSerializer();
+      ParkingTicket[] getParkingTickets = null;
+      DateTime trenutnoVreme = DateTime.Now;
+      try {
+        using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          SqlDataAdapter sda = new SqlDataAdapter();
+          SqlCommand command = new SqlCommand();
+          command.Connection = connection;
+          command.CommandText = "SELECT * FROM parking_ticket WHERE ticket_valid < @ticket_valid";
+          command.Parameters.AddWithValue("@ticket_valid", trenutnoVreme);
+          command.CommandType = System.Data.CommandType.Text;
+          sda.SelectCommand = command;
+          DataTable dTable = new DataTable();
+          sda.Fill(dTable);
+          getParkingTickets = new ParkingTicket[dTable.Rows.Count];
+          int brojac = 0;
+          for (int i = 0; i < dTable.Rows.Count; ++i) {
+            getParkingTickets[brojac] = new ParkingTicket() {
+              parking_ticket_id = Convert.ToString(dTable.Rows[i]["parking_ticket_id"]),
+              car_licence_plate = Convert.ToString(dTable.Rows[i]["car_licence_plate"]),
+              ticket_valid = Convert.ToString(dTable.Rows[i]["ticket_valid"])
+            };
+            ++brojac;
+          }
+          dTable.Clear();
+          connection.Close();
+        }
+      }
+      catch { }
+      var JSonData = new {
+        getParkingTickets = getParkingTickets
       };
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
