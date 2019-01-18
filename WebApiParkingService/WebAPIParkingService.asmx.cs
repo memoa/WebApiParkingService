@@ -22,7 +22,7 @@ namespace WebApiParkingService {
   [System.Web.Script.Services.ScriptService]
   public class WebService1 : System.Web.Services.WebService {
 
-    [WebMethod (MessageName = "Svi tiketi", Description = "Prikaz svih parking tiketa u JSon formatu")]
+    [WebMethod(MessageName = "Svi tiketi", Description = "Prikaz svih parking tiketa u JSon formatu")]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void GetAllTickets() {
       JavaScriptSerializer json = new JavaScriptSerializer();
@@ -54,8 +54,8 @@ namespace WebApiParkingService {
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
 
-    [WebMethod (MessageName = "ID tiketa", Description = "Pretraga po ID tiketa")]
-    [ScriptMethod (ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    [WebMethod(MessageName = "ID tiketa", Description = "Pretraga po ID tiketa")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void GetByTicketId(int id) {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket getParkingTicket = null;
@@ -81,14 +81,14 @@ namespace WebApiParkingService {
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
 
-    [WebMethod (MessageName = "Tablice", Description = "Pretraga po tablicama vozila")]
-    [ScriptMethod (ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    [WebMethod(MessageName = "Tablice", Description = "Pretraga po tablicama vozila")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void GetByLicencePlate(string licencePlate) {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket[] getParkingTicket = null;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
-          SqlDataAdapter sda = 
+          SqlDataAdapter sda =
             new SqlDataAdapter("SELECT * FROM parking_ticket WHERE car_licence_plate = '" + licencePlate + "'", connection);
           sda.SelectCommand.CommandType = System.Data.CommandType.Text;
           DataTable dTable = new DataTable();
@@ -114,8 +114,8 @@ namespace WebApiParkingService {
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
 
-    [WebMethod (MessageName = "Novi Tiket", Description = "Kreiranje novog tiketa prema registarskim tablicama")]
-    [ScriptMethod (ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    [WebMethod(MessageName = "Novi Tiket", Description = "Kreiranje novog tiketa prema registarskim tablicama")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void NewTicket(string licencePlate) {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket getParkingTicket = null;
@@ -128,28 +128,45 @@ namespace WebApiParkingService {
           SqlDataAdapter sda3 = new SqlDataAdapter();
           SqlCommand command3 = new SqlCommand();
           command3.Connection = connection;
-          command3.CommandText = 
+          command3.CommandText =
             "SELECT * FROM parking_ticket WHERE car_licence_plate = @car_licence_plate " +
             //"AND ticket_valid = (SELECT MAX(ticket_valid) FROM parking_ticket) " +
             "AND ticket_valid > @ticket_valid";
           command3.Parameters.AddWithValue("@car_licence_plate", licencePlate);
           command3.Parameters.AddWithValue("@ticket_valid", trenutnoVreme);
           command3.CommandType = System.Data.CommandType.Text;
+          sda3.SelectCommand.CommandType = System.Data.CommandType.Text;
           DataTable dTable3 = new DataTable();
-          bool notFound = sda3.Fill(dTable3) > 0 ? true : false;
+          int pronadjeno = sda3.Fill(dTable3);
+          getParkingTicket = new ParkingTicket() {
+            parking_ticket_id = Convert.ToString(dTable3.Rows[0]["parking_ticket_id"]),
+            car_licence_plate = Convert.ToString(dTable3.Rows[0]["car_licence_plate"]),
+            ticket_valid = Convert.ToString(dTable3.Rows[0]["ticket_valid"])
+          };
+          dTable3.Clear();
           connection.Close();
 
-          connection.Open();
-          SqlDataAdapter sda = new SqlDataAdapter();
-          SqlCommand command = new SqlCommand();
-          command.Connection = connection;
-          command.CommandText =
-            "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
-            "VALUES (@car_licence_plate, @ticket_valid)";
-          command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
-          command.Parameters.AddWithValue("@ticket_valid", ticketValid);
-          command.ExecuteNonQuery();
-          connection.Close();
+          if (pronadjeno == 0) {
+            connection.Open();
+            //SqlDataAdapter sda = new SqlDataAdapter();
+            SqlCommand command = new SqlCommand();
+            command.Connection = connection;
+            command.CommandText =
+              "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
+              "VALUES (@car_licence_plate, @ticket_valid)";
+            command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+            command.Parameters.AddWithValue("@ticket_valid", ticketValid);
+            command.ExecuteNonQuery();
+            connection.Close();
+          }
+          else {
+            connection.Open();
+            SqlCommand command4 = new SqlCommand();
+            command4.Connection = connection;
+            command4.CommandText =
+              "UPDATE parking_ticket SET ticket_valid = @ticket_valid WHERE parking_ticket_id = @parking_ticket_id";
+            command4.Parameters.AddWithValue("@ticket_valid", getParkingTicket.);
+          }
 
           connection.Open();
           SqlDataAdapter sda2 = new SqlDataAdapter();
