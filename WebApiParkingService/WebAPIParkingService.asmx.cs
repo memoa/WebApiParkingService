@@ -114,78 +114,97 @@ namespace WebApiParkingService {
       HttpContext.Current.Response.Write(json.Serialize(JSonData));
     }
 
-    [WebMethod(MessageName = "Novi Tiket", Description = "Kreiranje novog tiketa prema registarskim tablicama")]
+    [WebMethod(MessageName = "Novi Tiket", Description = 
+      "Kreiranje novog tiketa prema registarskim tablicama. Ako vec postoji tiket sa zadatim tablicama, koji nije istekao, " +
+      "taj tiket ce se produziti za jos 1h. Inace, kreirace se novi tiket koji istice za 1h od vremena kreiranja.")]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
     public void NewTicket(string licencePlate) {
       JavaScriptSerializer json = new JavaScriptSerializer();
-      ParkingTicket getParkingTicket = null;
+      ParkingTicket[] getParkingTicket = null;
       DateTime trenutnoVreme = DateTime.Now;
-      DateTime ticketValid = DateTime.Now.AddHours(1);
-      bool notExpired = true;
+      DateTime ticketValid = new DateTime();
+      int parkingTicketId = 0;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
           connection.Open();
-          SqlDataAdapter sda3 = new SqlDataAdapter();
-          SqlCommand command3 = new SqlCommand();
-          command3.Connection = connection;
-          command3.CommandText =
-            "SELECT * FROM parking_ticket WHERE car_licence_plate = @car_licence_plate " +
-            //"AND ticket_valid = (SELECT MAX(ticket_valid) FROM parking_ticket) " +
-            "AND ticket_valid > @ticket_valid";
-          command3.Parameters.AddWithValue("@car_licence_plate", licencePlate);
-          command3.Parameters.AddWithValue("@ticket_valid", trenutnoVreme);
-          command3.CommandType = System.Data.CommandType.Text;
-          sda3.SelectCommand.CommandType = System.Data.CommandType.Text;
-          DataTable dTable3 = new DataTable();
-          int pronadjeno = sda3.Fill(dTable3);
-          getParkingTicket = new ParkingTicket() {
-            parking_ticket_id = Convert.ToString(dTable3.Rows[0]["parking_ticket_id"]),
-            car_licence_plate = Convert.ToString(dTable3.Rows[0]["car_licence_plate"]),
-            ticket_valid = Convert.ToString(dTable3.Rows[0]["ticket_valid"])
-          };
-          dTable3.Clear();
-          connection.Close();
-
-          if (pronadjeno == 0) {
-            connection.Open();
-            //SqlDataAdapter sda = new SqlDataAdapter();
-            SqlCommand command = new SqlCommand();
+          SqlDataAdapter sda = new SqlDataAdapter();
+          using (SqlCommand command = new SqlCommand()) {
             command.Connection = connection;
             command.CommandText =
-              "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
-              "VALUES (@car_licence_plate, @ticket_valid)";
+              "SELECT * FROM parking_ticket WHERE car_licence_plate = @car_licence_plate " +
+              //"AND ticket_valid = (SELECT MAX(ticket_valid) FROM parking_ticket) " +
+              "AND ticket_valid > @ticket_valid";
             command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
-            command.Parameters.AddWithValue("@ticket_valid", ticketValid);
-            command.ExecuteNonQuery();
+            command.Parameters.AddWithValue("@ticket_valid", trenutnoVreme);
+            command.CommandType = System.Data.CommandType.Text;
+            sda.SelectCommand = command;
+          }
+          DataTable dTable = new DataTable();
+          sda.Fill(dTable);
+          getParkingTicket = new ParkingTicket[dTable.Rows.Count];
+          int brojac = 0;
+          for (int i = 0; i < dTable.Rows.Count; ++i) {
+            getParkingTicket[brojac] = new ParkingTicket() {
+              parking_ticket_id = Convert.ToString(dTable.Rows[i]["parking_ticket_id"]),
+              car_licence_plate = Convert.ToString(dTable.Rows[i]["car_licence_plate"]),
+              ticket_valid = Convert.ToString(dTable.Rows[i]["ticket_valid"])
+            };
+            ++brojac;
+          }
+          dTable.Clear();
+          connection.Close();
+          
+          if (getParkingTicket.Length == 0) {
+            ticketValid = DateTime.Now.AddHours(1);
+            connection.Open();
+            using (SqlCommand command = new SqlCommand()) {
+              command.Connection = connection;
+              command.CommandText =
+                "INSERT INTO parking_ticket (car_licence_plate, ticket_valid) " +
+                "VALUES (@car_licence_plate, @ticket_valid)";
+              command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+              command.Parameters.AddWithValue("@ticket_valid", ticketValid);
+              command.ExecuteNonQuery();
+            }
             connection.Close();
           }
           else {
+            parkingTicketId = Convert.ToInt32(getParkingTicket[getParkingTicket.Length - 1].parking_ticket_id);
+            ticketValid = Convert.ToDateTime(getParkingTicket[getParkingTicket.Length - 1].ticket_valid).AddHours(1);
             connection.Open();
-            SqlCommand command4 = new SqlCommand();
-            command4.Connection = connection;
-            command4.CommandText =
-              "UPDATE parking_ticket SET ticket_valid = @ticket_valid WHERE parking_ticket_id = @parking_ticket_id";
-            command4.Parameters.AddWithValue("@ticket_valid", getParkingTicket.);
+            using (SqlCommand command = new SqlCommand()) {
+              command.Connection = connection;
+              command.CommandText =
+                "UPDATE parking_ticket SET ticket_valid = @ticket_valid WHERE parking_ticket_id = @parking_ticket_id";
+              command.Parameters.AddWithValue("@ticket_valid", ticketValid);
+              command.Parameters.AddWithValue("@parking_ticket_id", parkingTicketId);
+              command.ExecuteNonQuery();
+            }
+            connection.Close();
           }
-
+ 
           connection.Open();
-          SqlDataAdapter sda2 = new SqlDataAdapter();
-          SqlCommand command2 = new SqlCommand();
-          command2.Connection = connection;
-          command2.CommandText =
-            "SELECT * FROM parking_ticket " +
-            "WHERE car_licence_plate = @car_licence_plate AND ticket_valid = @ticket_valid";
-          command2.Parameters.AddWithValue("@car_licence_plate", licencePlate);
-          command2.Parameters.AddWithValue("@ticket_valid", ticketValid);
-          command2.CommandType = System.Data.CommandType.Text;
-          sda2.SelectCommand = command2;
-          DataTable dTable = new DataTable();
-          sda2.Fill(dTable);
-          getParkingTicket = new ParkingTicket() {
-            parking_ticket_id = Convert.ToString(dTable.Rows[0]["parking_ticket_id"]),
-            car_licence_plate = Convert.ToString(dTable.Rows[0]["car_licence_plate"]),
-            ticket_valid = Convert.ToString(dTable.Rows[0]["ticket_valid"])
-          };
+          using (SqlCommand command = new SqlCommand()) {
+            command.Connection = connection;
+            command.CommandText =
+              "SELECT * FROM parking_ticket " +
+              "WHERE car_licence_plate = @car_licence_plate AND ticket_valid = @ticket_valid";
+            command.Parameters.AddWithValue("@car_licence_plate", licencePlate);
+            command.Parameters.AddWithValue("@ticket_valid", ticketValid);
+            command.CommandType = System.Data.CommandType.Text;
+            sda.SelectCommand = command;
+          }
+          sda.Fill(dTable);
+          getParkingTicket = new ParkingTicket[dTable.Rows.Count];
+          brojac = 0;
+          for (int i = 0; i < dTable.Rows.Count; ++i) {
+            getParkingTicket[brojac] = new ParkingTicket() {
+              parking_ticket_id = Convert.ToString(dTable.Rows[i]["parking_ticket_id"]),
+              car_licence_plate = Convert.ToString(dTable.Rows[i]["car_licence_plate"]),
+              ticket_valid = Convert.ToString(dTable.Rows[i]["ticket_valid"])
+            };
+            ++brojac;
+          }
           dTable.Clear();
           connection.Close();
         }
