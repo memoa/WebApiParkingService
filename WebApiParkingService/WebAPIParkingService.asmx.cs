@@ -280,5 +280,42 @@ namespace WebApiParkingService {
       catch { }
       return result;
     }
+
+    [WebMethod(MessageName = "Sortiranje", Description = "Sortiranje tabele u bazi podataka prema prosledjenom parametru")]
+    [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
+    public void Sort(string param, bool asc = true) {
+      JavaScriptSerializer json = new JavaScriptSerializer();
+      ParkingTicket[] getParkingTicket = null;
+      try {
+        using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
+          SqlDataAdapter sda = new SqlDataAdapter();
+          SqlCommand command = new SqlCommand();
+          command.Connection = connection;
+          command.CommandText = "SELECT * FROM parking_ticket ORDER BY " + param + " " + (asc ? "ASC" : "DESC");
+          command.CommandType = System.Data.CommandType.Text;
+          sda.SelectCommand = command;
+          DataTable dTable = new DataTable();
+          sda.Fill(dTable);
+          getParkingTicket = new ParkingTicket[dTable.Rows.Count];
+          int brojac = 0;
+          for (int i = 0; i < dTable.Rows.Count; ++i) {
+            getParkingTicket[brojac] = new ParkingTicket() {
+              parking_ticket_id = Convert.ToString(dTable.Rows[i]["parking_ticket_id"]),
+              car_licence_plate = Convert.ToString(dTable.Rows[i]["car_licence_plate"]),
+              ticket_valid = Convert.ToString(dTable.Rows[i]["ticket_valid"])
+            };
+            ++brojac;
+          }
+          dTable.Clear();
+          connection.Close();
+        }
+      }
+      catch { }
+      var JSonData = new {
+        getParkingTicket = getParkingTicket
+      };
+      HttpContext.Current.Response.Write(json.Serialize(JSonData));
+    }
   }
 }
