@@ -29,6 +29,7 @@ namespace WebApiParkingService {
       ParkingTicket[] getParkingTicket = null;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
           SqlDataAdapter sda = new SqlDataAdapter("SELECT * FROM parking_ticket", connection);
           sda.SelectCommand.CommandType = System.Data.CommandType.Text;
           DataTable dTable = new DataTable();
@@ -61,6 +62,7 @@ namespace WebApiParkingService {
       ParkingTicket getParkingTicket = null;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
           SqlDataAdapter sda = new SqlDataAdapter("SELECT * FROM parking_ticket WHERE parking_ticket_id =" + id, connection);
           sda.SelectCommand.CommandType = System.Data.CommandType.Text;
           DataTable dTable = new DataTable();
@@ -88,6 +90,7 @@ namespace WebApiParkingService {
       ParkingTicket[] getParkingTicket = null;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
           SqlDataAdapter sda =
             new SqlDataAdapter("SELECT * FROM parking_ticket WHERE car_licence_plate = '" + licencePlate + "'", connection);
           sda.SelectCommand.CommandType = System.Data.CommandType.Text;
@@ -126,6 +129,7 @@ namespace WebApiParkingService {
       int parkingTicketId = 0;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          // Pretraga da li vec postoji tiket sa zadatim tablicama i da li nije istekao
           connection.Open();
           SqlDataAdapter sda = new SqlDataAdapter();
           using (SqlCommand command = new SqlCommand()) {
@@ -154,6 +158,7 @@ namespace WebApiParkingService {
           dTable.Clear();
           connection.Close();
           
+          // Tiket sa zadatim tablicama ne postoji ili je istekao
           if (getParkingTicket.Length == 0) {
             ticketValid = DateTime.Now.AddHours(1);
             connection.Open();
@@ -168,6 +173,7 @@ namespace WebApiParkingService {
             }
             connection.Close();
           }
+          // Tiket sa zadatim tablicama postoji i nije istekao
           else {
             parkingTicketId = Convert.ToInt32(getParkingTicket[getParkingTicket.Length - 1].parking_ticket_id);
             ticketValid = Convert.ToDateTime(getParkingTicket[getParkingTicket.Length - 1].ticket_valid).AddHours(1);
@@ -182,7 +188,8 @@ namespace WebApiParkingService {
             }
             connection.Close();
           }
- 
+          
+          // Pretraga novog tiketa radi provere da li je pravilno upisan u bazu
           connection.Open();
           using (SqlCommand command = new SqlCommand()) {
             command.Connection = connection;
@@ -218,12 +225,13 @@ namespace WebApiParkingService {
 
     [WebMethod(MessageName = "Svi istekli tiketi", Description = "Prikaz isteklih tiketa")]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
-    public void getAllExpired() {
+    public void GetAllExpired() {
       JavaScriptSerializer json = new JavaScriptSerializer();
       ParkingTicket[] getParkingTickets = null;
       DateTime trenutnoVreme = DateTime.Now;
       try {
         using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
           SqlDataAdapter sda = new SqlDataAdapter();
           SqlCommand command = new SqlCommand();
           command.Connection = connection;
@@ -256,8 +264,21 @@ namespace WebApiParkingService {
 
     [WebMethod(MessageName = "Brisanje Isteklih Tiketa", Description = "Brisanje Svih Isteklih tiketa")]
     [ScriptMethod(ResponseFormat = ResponseFormat.Json, UseHttpGet = true)]
-    public void RemoveAllExpired() {
-
+    public int RemoveAllExpired() {
+      int result = -1;
+      try {
+        using (SqlConnection connection = new SqlConnection(DBConnection.ConnectionString)) {
+          connection.Open();
+          SqlCommand command = new SqlCommand();
+          command.Connection = connection;
+          command.CommandText = "DELETE FROM parking_ticket WHERE ticket_valid < @ticket_valid";
+          command.Parameters.AddWithValue("@ticket_valid", DateTime.Now);
+          result = command.ExecuteNonQuery();
+          connection.Close();
+        }
+      }
+      catch { }
+      return result;
     }
   }
 }
